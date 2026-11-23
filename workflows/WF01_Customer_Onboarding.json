@@ -1,0 +1,711 @@
+{
+  "name": "WF01 - Customer Onboarding",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Farmily Customer Onboarding",
+        "formDescription": "Register your business for our independent onboarding prototype.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Business Name",
+              "placeholder": "e.g. Green Valley Exports",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Contact Person Name",
+              "placeholder": "e.g. John Doe",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Email Address",
+              "fieldType": "email",
+              "placeholder": "e.g. john@example.com",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Business Type",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Exporter"
+                  },
+                  {
+                    "option": "Farmer"
+                  },
+                  {
+                    "option": "Cooperative"
+                  },
+                  {
+                    "option": "Certifier"
+                  }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Country/Location",
+              "placeholder": "e.g. Lagos, Nigeria",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "What do you want to achieve?",
+              "fieldType": "textarea",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Specific Onboarding Challenges",
+              "fieldType": "textarea"
+            }
+          ]
+        },
+        "options": {
+          "path": "farmily-customer-onboarding"
+        }
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        -896,
+        256
+      ],
+      "id": "81415cf7-97a7-4531-a36c-714d3f71d392",
+      "name": "On form submission"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d5182667-cc94-44f2-9e13-7d652af834d0",
+              "leftValue": "={{ $json.is_valid }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -224,
+        256
+      ],
+      "id": "dcda99c9-6c9a-4aea-a575-49639625a54f",
+      "name": "Check Customer Validity"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "return {\n  json: {\n    success: false,\n    message: 'Customer registration failed validation.',\n    errors: $json.validation_errors,\n    customer_email: $json.email || null,\n    processed_at: new Date().toISOString()\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        64,
+        400
+      ],
+      "id": "a836ea25-40bb-41d4-a0e6-8806766833e7",
+      "name": "Prepare Validation Error"
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"customer_category\": \"Exporter\",\n  \"needs_summary\": \"Customer wants to prepare agricultural products for export.\",\n  \"onboarding_plan\": \"A personalised onboarding plan based on the customer's needs.\",\n  \"clarification_questions\": [\n    \"Which agricultural products do you intend to export?\"\n  ],\n  \"tasks\": [\n    {\n      \"task_title\": \"Understand customer requirements\",\n      \"task_description\": \"Clarify the customer's business objectives.\",\n      \"responsible_party\": \"ONBOARDING_TEAM\",\n      \"priority\": \"HIGH\"\n    }\n  ]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        144,
+        224
+      ],
+      "id": "f2abd857-b539-446d-8e56-ba0e572cbda9",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        16,
+        224
+      ],
+      "id": "e75249b3-b2d9-4880-baf7-dff37bbd630b",
+      "name": "Google Gemini Chat Model"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an AI customer onboarding assistant for an\nindependent agricultural onboarding automation prototype.\n\nAnalyse the following customer information.\n\nCUSTOMER INFORMATION:\n\nBusiness name: {{ $json.business_name }}\nContact name: {{ $json.contact_name }}\nBusiness type: {{ $json.business_type }}\nLocation: {{ $json.country_location }}\nCustomer goals: {{ $json.customer_goals }}\nOnboarding challenges: {{ $json.onboarding_challenges }}\n\nYOUR RESPONSIBILITIES:\n\n1. Identify the customer's category.\n2. Summarise their needs.\n3. Identify likely onboarding steps.\n4. Generate a personalised onboarding plan.\n5. Identify questions requiring human clarification.\n\nIMPORTANT SAFETY RULES:\n\n- Do not invent Farmily policies.\n- Do not invent regulatory requirements.\n- Do not claim that any certification is mandatory.\n- Do not provide definitive legal or compliance advice.\n- Treat regulatory and certification matters as requiring\n  verification by an authorised human.\n- Clearly distinguish general onboarding suggestions\n  from verified requirements.\n- If information is missing, ask for clarification.\n- Do not describe Farmily's platform, portal, dashboard, features,\n  fees or processes, and do not create tasks that assume a specific\n  Farmily tool exists. Keep tasks generic and based only on what the\n  customer told you.\n\nGenerate 3 to 6 practical onboarding tasks.\n\nEach task must contain:\n- task_title\n- task_description\n- responsible_party\n- priority\n\nUse responsible_party values:\nCUSTOMER, ONBOARDING_TEAM, HUMAN_SPECIALIST.\n\nReturn structured information matching the output schema.",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": []
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        0,
+        0
+      ],
+      "id": "c602a17d-4a68-4b51-8fc9-414b0f02e9e8",
+      "name": "AI Customer Analysis",
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Retrieve original customer information\nconst customer = $('Validate Customer Data').first().json;\n\n// Fallback used when the AI step fails or returns unusable output,\n// so the customer is still onboarded and flagged for a human.\nfunction fallback(reason) {\n  return {\n    json: {\n      ...customer,\n      ai_status: 'FALLBACK',\n      customer_category: customer.business_type,\n      needs_summary: `[AI unavailable - manual review needed] ${customer.customer_goals}`,\n      onboarding_plan: 'Our onboarding team will review your submission and tailor your plan. In the meantime, please complete the steps below.',\n      clarification_questions: [\n        'Could you share more detail about your goals and any onboarding challenges?'\n      ],\n      tasks: [\n        {\n          task_title: 'Confirm your business details',\n          task_description: 'Reply to confirm your business details and goals so our team can tailor your onboarding.',\n          responsible_party: 'CUSTOMER',\n          priority: 'HIGH'\n        },\n        {\n          task_title: 'Onboarding team review',\n          task_description: 'Our team will manually review your submission and prepare a personalised plan.',\n          responsible_party: 'ONBOARDING_TEAM',\n          priority: 'HIGH'\n        },\n        {\n          task_title: 'Specialist check of regulatory or certification questions',\n          task_description: 'A specialist will verify any regulatory or certification matters relevant to your business.',\n          responsible_party: 'HUMAN_SPECIALIST',\n          priority: 'MEDIUM'\n        }\n      ]\n    }\n  };\n}\n\ntry {\n  // Retrieve Gemini response\n  let response = $json.output ?? $json.text ?? $json.response ?? $json;\n\n  // Handle JSON returned as text\n  if (typeof response === 'string') {\n    response = response\n      .replace(/^```json\\s*/i, '')\n      .replace(/\\s*```$/, '');\n    response = JSON.parse(response);\n  }\n\n  // Handle nested output structures\n  const analysis = response.output ?? response;\n\n  // Validate AI response\n  for (const field of ['customer_category', 'needs_summary', 'onboarding_plan']) {\n    if (!analysis[field]) throw new Error(`AI response missing: ${field}`);\n  }\n\n  if (!Array.isArray(analysis.tasks) || analysis.tasks.length === 0) {\n    throw new Error('AI did not generate onboarding tasks.');\n  }\n\n  for (const task of analysis.tasks) {\n    if (!task.task_title || !task.task_description || !task.responsible_party || !task.priority) {\n      throw new Error('One or more AI-generated tasks are incomplete.');\n    }\n  }\n\n  return {\n    json: {\n      ...customer,\n      ai_status: 'OK',\n      customer_category: analysis.customer_category,\n      needs_summary: analysis.needs_summary,\n      onboarding_plan: analysis.onboarding_plan,\n      clarification_questions: analysis.clarification_questions || [],\n      tasks: analysis.tasks\n    }\n  };\n} catch (error) {\n  return fallback(error.message);\n}\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        112
+      ],
+      "id": "813f6a57-769d-4ebf-b8c9-2702f062b3da",
+      "name": "Parse AI Analysis"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const stamp = () => new Intl.DateTimeFormat('sv-SE', {\n  timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit',\n  hour: '2-digit', minute: '2-digit', hour12: false\n}).format(new Date());   // e.g. 2026-11-23 09:10 (Lagos time)\n\n// Get submitted form data\nconst input = $json;\n\n// Support both direct form fields and nested body fields\nconst data = input.body && typeof input.body === 'object'\n  ? { ...input, ...input.body }\n  : input;\n\n// Normalise field names to handle spaces and different naming formats\nfunction normaliseKey(key) {\n  return key.toLowerCase().replace(/[^a-z0-9]/g, '');\n}\n\nconst fields = {};\nfor (const [key, value] of Object.entries(data)) {\n  fields[normaliseKey(key)] = value;\n}\n\n// Retrieve values using alternative field names\nfunction getField(...names) {\n  for (const name of names) {\n    const value = fields[normaliseKey(name)];\n    if (value !== undefined && value !== null && String(value).trim() !== '') {\n      return String(value).trim();\n    }\n  }\n  return '';\n}\n\n// Extract and standardise customer information\nconst customer = {\n  customer_id: `CUS-${Date.now()}-${Math.floor(Math.random() * 10000)}`,\n  created_at: stamp(),\n\n  business_name: getField('Business Name', 'businessName'),\n  contact_name: getField('Contact Person Name', 'Contact Name', 'contactName'),\n  email: getField('Email Address', 'Email', 'email').toLowerCase(),\n  business_type: getField('Business Type', 'businessType'),\n  country_location: getField('Country / Location', 'Country Location', 'Location'),\n  customer_goals: getField('What do you want to achieve?', 'Customer Goals', 'Goals'),\n  onboarding_challenges: getField('Specific Onboarding Challenges', 'Onboarding Challenges', 'Challenges'),\n\n  onboarding_status: 'PENDING',\n  welcome_email_status: 'PENDING'\n};\n\n// Validate required fields\nconst requiredFields = [\n  'business_name',\n  'contact_name',\n  'email',\n  'business_type',\n  'country_location',\n  'customer_goals'\n];\n\nconst validationErrors = [];\n\nfor (const field of requiredFields) {\n  if (!customer[field]) {\n    validationErrors.push(`${field} is required`);\n  }\n}\n\n// Validate email format\nconst emailPattern = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;\n\nif (customer.email && !emailPattern.test(customer.email)) {\n  validationErrors.push('Invalid email address');\n}\n\n// Validate business category\nconst allowedTypes = [\n  'exporter',\n  'farmer',\n  'cooperative',\n  'certifier'\n];\n\nif (\n  customer.business_type &&\n  !allowedTypes.includes(customer.business_type.toLowerCase())\n) {\n  validationErrors.push('Invalid business type');\n}\n\n// Return standardised customer data\nreturn {\n  json: {\n    ...customer,\n    is_valid: validationErrors.length === 0,\n    validation_errors: validationErrors\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -672,
+        256
+      ],
+      "id": "62f37c7d-d29a-473b-a8bf-6a6b08d5b642",
+      "name": "Validate Customer Data"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const customer = $json;\n\nconst subject = `Welcome to the onboarding programme, ${customer.business_name}`;\n\n// Give every task a target date (also reused when tasks are saved)\nconst daysByPriority = { HIGH: 3, MEDIUM: 7, LOW: 10 };\nconst tasks = customer.tasks.map(task => {\n  const priority = String(task.priority || 'MEDIUM').toUpperCase();\n  const due = new Date();\n  due.setDate(due.getDate() + (daysByPriority[priority] ?? 7));\n  return { ...task, priority, due_date: due.toISOString().split('T')[0] };\n});\n\nconst owner = {\n  ONBOARDING_TEAM: 'our onboarding team',\n  HUMAN_SPECIALIST: 'one of our specialists'\n};\n\nconst customerTasks = tasks.filter(t => t.responsible_party === 'CUSTOMER');\nconst teamTasks = tasks.filter(t => t.responsible_party !== 'CUSTOMER');\n\nconst needs = customer.ai_status === 'FALLBACK'\n  ? customer.customer_goals\n  : customer.needs_summary;\n\nconst youList = customerTasks.length\n  ? customerTasks.map((t, i) =>\n      `${i + 1}. ${t.task_title}\\n   ${t.task_description}\\n   Please complete by: ${t.due_date}`\n    ).join('\\n\\n')\n  : 'Nothing is needed from you right now.';\n\nconst teamList = teamTasks.length\n  ? teamTasks.map((t, i) =>\n      `${i + 1}. ${t.task_title}\\n   ${t.task_description}\\n   Handled by ${owner[t.responsible_party] || 'our team'}`\n    ).join('\\n\\n')\n  : 'We will be in touch with any further steps.';\n\nconst questions = customer.clarification_questions?.length\n  ? `\\nQUESTIONS WE'D LIKE YOU TO ANSWER\\n${customer.clarification_questions.map((q, i) => `${i + 1}. ${q}`).join('\\n')}\\n\\nSimply reply to this email with your answers.\\n`\n  : '';\n\nconst body = `Hello ${customer.contact_name},\n\nThank you for registering ${customer.business_name}. We have reviewed your submission and prepared a starting plan.\n\nWHAT YOU TOLD US\n${needs}\n\nYOUR ONBOARDING PLAN\n${customer.onboarding_plan}\n\nWHAT WE NEED FROM YOU\n${youList}\n\nWHAT OUR TEAM WILL DO\n${teamList}\n${questions}\nPlease note that this is an independent onboarding prototype. Any regulatory or compliance matters will require human verification.\n\nKind regards,\nCustomer Onboarding Team\n`;\n\nreturn {\n  json: {\n    ...customer,\n    tasks,\n    welcome_email_subject: subject,\n    welcome_email_body: body,\n    welcome_email_status: 'PENDING'\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        112
+      ],
+      "id": "fffc49df-587c-4b0e-989e-79b30851456e",
+      "name": "Prepare Welcome Email"
+    },
+    {
+      "parameters": {
+        "jsCode": "const stamp = () => new Intl.DateTimeFormat('sv-SE', {\n  timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit',\n  hour: '2-digit', minute: '2-digit', hour12: false\n}).format(new Date());   // e.g. 2026-11-23 09:10 (Lagos time)\n\nconst customer = $('Prepare Welcome Email').first().json;\n\nconst tasks = customer.tasks;\n\nif (!Array.isArray(tasks) || tasks.length === 0) {\n  throw new Error('No onboarding tasks available.');\n}\n\nreturn tasks.map((task, index) => ({\n  json: {\n    task_id: `${customer.customer_id}-TSK-${index + 1}`,\n    customer_id: customer.customer_id,\n    task_title: task.task_title,\n    task_description: task.task_description,\n    responsible_party: task.responsible_party,\n    due_date: task.due_date,\n    status: 'PENDING',\n    created_at: stamp(),\n    completed_at: ''\n  }\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1472,
+        112
+      ],
+      "id": "2b4e3711-acca-4a54-9235-6d5e847778b6",
+      "name": "Generate Onboarding Tasks"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Customers",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "customer_id": "={{ $('Prepare Welcome Email').first().json.customer_id }}",
+            "created_at": "={{ $('Prepare Welcome Email').first().json.created_at }}",
+            "business_name": "={{ $('Prepare Welcome Email').first().json.business_name }}",
+            "contact_name": "={{ $('Prepare Welcome Email').first().json.contact_name }}",
+            "email": "={{ $('Prepare Welcome Email').first().json.email }}",
+            "business_type": "={{ $('Prepare Welcome Email').first().json.business_type }}",
+            "country_location": "={{ $('Prepare Welcome Email').first().json.country_location }}",
+            "customer_goals": "={{ $('Prepare Welcome Email').first().json.customer_goals }}",
+            "onboarding_challenges": "={{ $('Prepare Welcome Email').first().json.onboarding_challenges }}",
+            "customer_category": "={{ $('Prepare Welcome Email').first().json.customer_category }}",
+            "needs_summary": "={{ $('Prepare Welcome Email').first().json.needs_summary }}",
+            "onboarding_plan": "={{ $('Prepare Welcome Email').first().json.onboarding_plan }}",
+            "clarification_questions": "={{ ($('Prepare Welcome Email').first().json.clarification_questions || []).join('; ') }}",
+            "onboarding_status": "={{ $('Prepare Welcome Email').first().json.onboarding_status }}",
+            "welcome_email_status": "={{ $json.id ? 'SENT' : 'FAILED' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "customer_id",
+              "displayName": "customer_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "business_name",
+              "displayName": "business_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "contact_name",
+              "displayName": "contact_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "business_type",
+              "displayName": "business_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "country_location",
+              "displayName": "country_location",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_goals",
+              "displayName": "customer_goals",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "onboarding_challenges",
+              "displayName": "onboarding_challenges",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_category",
+              "displayName": "customer_category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "needs_summary",
+              "displayName": "needs_summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "onboarding_plan",
+              "displayName": "onboarding_plan",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "clarification_questions",
+              "displayName": "clarification_questions",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "onboarding_status",
+              "displayName": "onboarding_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "welcome_email_status",
+              "displayName": "welcome_email_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "last_followup_at",
+              "displayName": "last_followup_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1248,
+        112
+      ],
+      "id": "6f9a461e-8046-4f9a-9a89-bf8c446912fc",
+      "name": "Save Customer Record",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Onboarding Tasks",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "task_id": "={{ $json.task_id }}",
+            "customer_id": "={{ $json.customer_id }}",
+            "task_title": "={{ $json.task_title }}",
+            "task_description": "={{ $json.task_description }}",
+            "responsible_party": "={{ $json.responsible_party }}",
+            "due_date": "={{ $json.due_date }}",
+            "status": "={{ $json.status }}",
+            "created_at": "={{ $json.created_at }}",
+            "completed_at": "={{ $json.completed_at }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "task_id",
+              "displayName": "task_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_id",
+              "displayName": "customer_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "task_title",
+              "displayName": "task_title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "task_description",
+              "displayName": "task_description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "responsible_party",
+              "displayName": "responsible_party",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "due_date",
+              "displayName": "due_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "completed_at",
+              "displayName": "completed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1696,
+        112
+      ],
+      "id": "37550586-0904-42ec-90ff-a94a3afe9f18",
+      "name": "Save Onboarding Tasks",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Prepare Welcome Email').first().json.email }}",
+        "subject": "={{ $('Prepare Welcome Email').first().json.welcome_email_subject }}",
+        "emailType": "text",
+        "message": "={{ $('Prepare Welcome Email').first().json.welcome_email_body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1024,
+        112
+      ],
+      "id": "b09e14d7-6a9f-4aa7-b001-67281a5cad4c",
+      "name": "Send Welcome Email",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Validate Customer Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Customer Validity": {
+      "main": [
+        [
+          {
+            "node": "AI Customer Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Validation Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Customer Analysis",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Customer Analysis",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Customer Analysis": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Customer Data": {
+      "main": [
+        [
+          {
+            "node": "Check Customer Validity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Analysis": {
+      "main": [
+        [
+          {
+            "node": "Prepare Welcome Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Welcome Email": {
+      "main": [
+        [
+          {
+            "node": "Send Welcome Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Customer Record": {
+      "main": [
+        [
+          {
+            "node": "Generate Onboarding Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Onboarding Tasks": {
+      "main": [
+        [
+          {
+            "node": "Save Onboarding Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Welcome Email": {
+      "main": [
+        [
+          {
+            "node": "Save Customer Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "tags": []
+}

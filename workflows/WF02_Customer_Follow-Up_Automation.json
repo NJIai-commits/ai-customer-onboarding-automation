@@ -1,0 +1,348 @@
+{
+  "name": "WF02 – Customer Follow-Up Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "e86aa69e-a812-49dd-99dd-02051c6191dc",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Onboarding Tasks",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        224,
+        0
+      ],
+      "id": "e69378d6-b2e7-4720-9f6a-524cb8b9c2b5",
+      "name": "Get Onboarding Tasks",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Customers",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        448,
+        0
+      ],
+      "id": "e7695afc-b07f-4d3f-a099-ad5fa61b55b7",
+      "name": "Get Customers",
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Follow_Up_Log",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        672,
+        0
+      ],
+      "id": "400eba21-6bb9-401a-82dd-afe9b032c136",
+      "name": "Get Follow-Up Log",
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "jsCode": "const CUTOFF_TIME = '5:00 PM';   // change here if you agree a different deadline time\n\nconst tasks = $('Get Onboarding Tasks')\n  .all()\n  .map(i => i.json)\n  .filter(t => t.task_id);\n\nconst customers = $('Get Customers')\n  .all()\n  .map(i => i.json)\n  .filter(c => c.customer_id);\n\nconst followupLogs = $('Get Follow-Up Log')\n  .all()\n  .map(i => i.json)\n  .filter(log => log.followup_id && log.task_id);\n\nconst now = new Date();\n\nconst lagosDate = date => new Intl.DateTimeFormat('en-CA', {\n  timeZone: 'Africa/Lagos',\n  year: 'numeric',\n  month: '2-digit',\n  day: '2-digit'\n}).format(date);\n\nconst today = lagosDate(now);\n\nconst tomorrowDate = new Date(`${today}T12:00:00Z`);\ntomorrowDate.setUTCDate(tomorrowDate.getUTCDate() + 1);\nconst tomorrow = tomorrowDate.toISOString().slice(0, 10);\n\nfunction getDateOnly(value) {\n  if (!value) return null;\n  const text = String(value).trim();\n  if (/^\\d{4}-\\d{2}-\\d{2}/.test(text)) return text.slice(0, 10);\n  const parsed = new Date(text);\n  if (Number.isNaN(parsed.getTime())) return null;\n  return lagosDate(parsed);\n}\n\nconst customerMap = new Map();\nfor (const customer of customers) {\n  customerMap.set(String(customer.customer_id), customer);\n}\n\n// Tasks already reminded today (Lagos date). FAILED rows do not count.\nconst remindedTodayTaskIds = new Set();\nfor (const log of followupLogs) {\n  if (String(log.status || '').toUpperCase() !== 'SENT' || !log.sent_at) continue;\n  if (getDateOnly(log.sent_at) === today) {\n    remindedTodayTaskIds.add(String(log.task_id));\n  }\n}\n\n// Stage: OVERDUE > DUE_TODAY > DUE_TOMORROW\nconst stageRank = { DUE_TOMORROW: 1, DUE_TODAY: 2, OVERDUE: 3 };\n\nconst dueTasksByCustomer = new Map();\n\nfor (const task of tasks) {\n  const status = String(task.status || '').trim().toUpperCase();\n  if (!['PENDING', 'IN_PROGRESS'].includes(status)) continue;\n\n  // Only remind customers about tasks that are theirs to complete\n  if (String(task.responsible_party || '').trim().toUpperCase() !== 'CUSTOMER') continue;\n\n  const dueDate = getDateOnly(task.due_date);\n  if (!dueDate || dueDate > tomorrow) continue;\n\n  const taskId = String(task.task_id);\n  if (remindedTodayTaskIds.has(taskId)) continue;\n\n  const customerId = String(task.customer_id);\n  const customer = customerMap.get(customerId);\n  if (!customer || !customer.email) continue;\n\n  const stage =\n    dueDate < today ? 'OVERDUE' :\n    dueDate === today ? 'DUE_TODAY' :\n    'DUE_TOMORROW';\n\n  if (!dueTasksByCustomer.has(customerId)) {\n    dueTasksByCustomer.set(customerId, {\n      customer_id: customerId,\n      business_name: customer.business_name,\n      contact_name: customer.contact_name,\n      email: customer.email,\n      tasks: []\n    });\n  }\n\n  dueTasksByCustomer.get(customerId).tasks.push({\n    task_id: taskId,\n    task_title: task.task_title,\n    task_description: task.task_description,\n    due_date: dueDate,\n    status,\n    stage\n  });\n}\n\nconst dueLine = task =>\n  task.stage === 'OVERDUE'      ? `Overdue - it was due on ${task.due_date}` :\n  task.stage === 'DUE_TODAY'    ? `Due today by ${CUTOFF_TIME}` :\n                                  `Due tomorrow (${task.due_date}) by ${CUTOFF_TIME}`;\n\nconst results = [];\n\nfor (const customer of dueTasksByCustomer.values()) {\n  const topStage = customer.tasks\n    .map(t => t.stage)\n    .sort((a, b) => stageRank[b] - stageRank[a])[0];\n\n  const subjectTag =\n    topStage === 'OVERDUE' ? 'Overdue' :\n    topStage === 'DUE_TODAY' ? 'Due today' :\n    'Due tomorrow';\n\n  const taskList = customer.tasks.map((task, index) =>\n    `${index + 1}. ${task.task_title}\n${task.task_description}\n${dueLine(task)}`\n  ).join('\\n\\n');\n\n  results.push({\n    json: {\n      customer_id: customer.customer_id,\n      business_name: customer.business_name,\n      contact_name: customer.contact_name,\n      email: customer.email,\n      email_subject: `Onboarding Reminder (${subjectTag}) - ${customer.business_name}`,\n      email_body: `\nHello ${customer.contact_name},\n\nThis is a friendly reminder about your onboarding tasks for ${customer.business_name}.\n\n${taskList}\n\nIf you have already completed a task, please let our onboarding team know.\n\nKind regards,\nCustomer Onboarding Team\n\nIndependent onboarding prototype.\n      `.trim(),\n      tasks: customer.tasks\n    }\n  });\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        0
+      ],
+      "id": "caa0fa31-8157-4cb7-b7a1-41b639c8afa0",
+      "name": "Prepare Follow Up"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "={{ $json.email_subject }}",
+        "emailType": "text",
+        "message": "={{ $json.email_body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1120,
+        0
+      ],
+      "id": "d9c1e4dc-ca35-4b38-bf64-7cf2750add78",
+      "name": "Send a message",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const stamp = () => new Intl.DateTimeFormat('sv-SE', {\n  timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit',\n  hour: '2-digit', minute: '2-digit', hour12: false\n}).format(new Date());   // e.g. 2026-11-23 09:10 (Lagos time)\n\n// Log one row per task, using what Gmail actually did (SENT or FAILED).\n// FAILED rows do not block tomorrow's retry (only SENT rows suppress a reminder).\nconst reminders = $('Prepare Follow Up').all();\nconst results = $input.all();\nconst uniq = Date.now();\nconst rows = [];\n\nresults.forEach((res, idx) => {\n  const pairedIdx = typeof res.pairedItem?.item === 'number' ? res.pairedItem.item : idx;\n  const reminder = reminders[pairedIdx]?.json;\n\n  if (!reminder || !reminder.customer_id || !Array.isArray(reminder.tasks)) return;\n\n  const sent = Boolean(res.json && res.json.id);\n  const errorText = String(res.json?.error?.message || res.json?.error || 'unknown error').slice(0, 200);\n\n  for (const task of reminder.tasks) {\n    rows.push({\n      json: {\n        followup_id: `${reminder.customer_id}-${task.task_id}-${uniq}`,\n        customer_id: reminder.customer_id,\n        task_id: task.task_id,\n        sent_at: stamp(),\n        channel: 'EMAIL',\n        message: sent\n          ? `Reminder sent for task: ${task.task_title}`\n          : `Reminder FAILED for task: ${task.task_title} (${errorText})`,\n        status: sent ? 'SENT' : 'FAILED'\n      }\n    });\n  }\n});\n\nreturn rows;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        0
+      ],
+      "id": "86d84505-7453-4d6d-8433-ac567bd4bd98",
+      "name": "Prepare Follow-Up Log Rows"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Follow_Up_Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "followup_id": "={{ $json.followup_id }}",
+            "customer_id": "={{ $json.customer_id }}",
+            "task_id": "={{ $json.task_id }}",
+            "sent_at": "={{ $json.sent_at }}",
+            "channel": "={{ $json.channel }}",
+            "message": "={{ $json.message }}",
+            "status": "={{ $json.status }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "followup_id",
+              "displayName": "followup_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_id",
+              "displayName": "customer_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "task_id",
+              "displayName": "task_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "sent_at",
+              "displayName": "sent_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "channel",
+              "displayName": "channel",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1568,
+        0
+      ],
+      "id": "f084649a-e380-400e-bec4-2f1cc098a002",
+      "name": "Append row in sheet",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get Onboarding Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Onboarding Tasks": {
+      "main": [
+        [
+          {
+            "node": "Get Customers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Customers": {
+      "main": [
+        [
+          {
+            "node": "Get Follow-Up Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Follow-Up Log": {
+      "main": [
+        [
+          {
+            "node": "Prepare Follow Up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Follow Up": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "Prepare Follow-Up Log Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Follow-Up Log Rows": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "tags": []
+}

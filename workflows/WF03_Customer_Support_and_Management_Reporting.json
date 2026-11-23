@@ -1,0 +1,766 @@
+{
+  "name": "WF03 - Customer Support & Management Reporting",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Farmily Customer Support",
+        "formDescription": "Submit a question or request for assistance",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Customer ID",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Contact Name",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Email Address",
+              "fieldType": "email",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Business Name",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Support Question",
+              "fieldType": "textarea",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Additional Information",
+              "fieldType": "textarea"
+            }
+          ]
+        },
+        "options": {
+          "path": "farmily-customer-support"
+        }
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        -656,
+        1616
+      ],
+      "id": "7c373d96-b570-4340-b568-2caf9d777a0a",
+      "name": "Customer Support Form"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const stamp = () => new Intl.DateTimeFormat('sv-SE', {\n  timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit',\n  hour: '2-digit', minute: '2-digit', hour12: false\n}).format(new Date());   // e.g. 2026-11-23 09:10 (Lagos time)\n\n\nconst data = $json.body || $json;\n\nconst customerId = String(data['Customer ID'] || data.customer_id || '').trim();\nconst contactName = String(data['Contact Name'] || data.contact_name || '').trim();\nconst email = String(data['Email Address'] || data.email || '').trim();\nconst businessName = String(data['Business Name'] || data.business_name || '').trim();\nconst question = String(data['Support Question'] || data.support_question || '').trim();\nconst additionalInfo = String(data['Additional Information'] || data.additional_information || '').trim();\n\nconst errors = [];\n\nif (!customerId) errors.push('Customer ID is required.');\nif (!contactName) errors.push('Contact name is required.');\nif (!businessName) errors.push('Business name is required.');\nif (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {\n  errors.push('A valid email address is required.');\n}\nif (!question) errors.push('Support question is required.');\n\nreturn {\n  json: {\n    support_id: `SUP-${Date.now()}-${Math.floor(Math.random() * 1000)}`,\n    customer_id: customerId,\n    contact_name: contactName,\n    email,\n    business_name: businessName,\n    customer_question: question,\n    additional_information: additionalInfo,\n    submitted_at: stamp(),\n    is_valid: errors.length === 0,\n    validation_errors: errors\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -464,
+        1616
+      ],
+      "id": "581c3ec5-ca10-4657-b8e1-636118cfe8eb",
+      "name": "Validate Support Request"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "e80a2d2d-4338-469e-b6a0-9f98ced6c894",
+              "leftValue": "={{ $json.is_valid }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -304,
+        1616
+      ],
+      "id": "975b47ff-4502-4c7e-8098-61349c9c568d",
+      "name": "Check Support Request"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an AI customer support assistant for an independent agricultural onboarding prototype.\n\nAnalyse the customer's support request.\n\nCUSTOMER DETAILS:\nCustomer ID: {{ $json.customer_id }}\nBusiness: {{ $json.business_name }}\nContact: {{ $json.contact_name }}\n\nSUPPORT QUESTION:\n{{ $json.customer_question }}\n\nADDITIONAL INFORMATION:\n{{ $json.additional_information }}\n\nYour responsibilities (do this for EACH separate issue):\n1. Categorise the issue. The category must be exactly one of:\n   ONBOARDING, DOCUMENTATION, TECHNICAL, COMPLIANCE, PAYMENT, GENERAL.\n2. Assign a priority: LOW, MEDIUM, HIGH, or CRITICAL.\n3. Write a concise, helpful draft response.\n4. Determine whether human escalation is required.\n5. Explain why escalation is required or not required.\n\nOne entry per issue:\n- If the message contains more than one distinct question or issue, return a separate entry for each one (maximum 5). Never merge unrelated issues into one entry.\n- If it contains only one issue, return a single entry.\n- customer_question must be the customer's own wording for that one issue. Copy it; do not rewrite it.\n- Do not split one issue into several entries.\n\nRules:\n- Do not invent Farmily policies, fees, deadlines, or regulations.\n- Do not provide unverified legal, export, certification, or regulatory advice.\n- Escalate regulatory, certification, account security, payment disputes, complaints, and requests requiring specialist decisions.\n- If information is insufficient, ask for clarification.\n- This response is a draft and must not be sent automatically.\n\nReturn a JSON object with a \"requests\" list. Each entry has:\ncustomer_question, category, priority, ai_draft_response, escalation_required, escalation_reason",
+        "hasOutputParser": true,
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        -96,
+        1552
+      ],
+      "id": "9eee97ad-048e-4052-9614-5304fd15fed3",
+      "name": "AI Support Analysis",
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        -112,
+        1760
+      ],
+      "id": "0398c344-73d3-4d65-a955-97b910708067",
+      "name": "Google Gemini Chat Model"
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"requests\": [\n    {\n      \"customer_question\": \"How do I upload my business registration documents?\",\n      \"category\": \"DOCUMENTATION\",\n      \"priority\": \"MEDIUM\",\n      \"ai_draft_response\": \"Thank you for contacting our support team. Please tell us which documents you are having difficulty uploading so we can guide you.\",\n      \"escalation_required\": false,\n      \"escalation_reason\": \"\"\n    },\n    {\n      \"customer_question\": \"I think we were charged twice for our onboarding fee.\",\n      \"category\": \"PAYMENT\",\n      \"priority\": \"HIGH\",\n      \"ai_draft_response\": \"Thank you for letting us know. A member of our team will review your payment and get back to you.\",\n      \"escalation_required\": true,\n      \"escalation_reason\": \"Possible payment dispute needs a human decision.\"\n    }\n  ]\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        32,
+        1776
+      ],
+      "id": "1720da5d-f92b-453e-ab4c-79ea3df8d998",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $('AI Support Analysis').first().json;\nconst request = $('Validate Support Request').first().json;\n\n// Find the AI's list of issues, even if nested (a single old-style answer is wrapped in a list).\nfunction findRequests(value) {\n  if (!value) return null;\n\n  if (typeof value === 'string') {\n    try {\n      return findRequests(JSON.parse(value));\n    } catch {\n      return null;\n    }\n  }\n\n  if (typeof value !== 'object') return null;\n\n  if (Array.isArray(value.requests) && value.requests.length > 0) return value.requests;\n\n  if (Object.prototype.hasOwnProperty.call(value, 'ai_draft_response')) return [value];\n\n  for (const nestedValue of Object.values(value)) {\n    const result = findRequests(nestedValue);\n    if (result) return result;\n  }\n\n  return null;\n}\n\nconst issues = (findRequests(raw) || [])\n  .filter(item => item && item.ai_draft_response)\n  .slice(0, 10);\n\n// Fallback: never lose a customer's question because the AI step failed.\n// The whole message is saved as one row, flagged for escalation and left for a human to triage.\nif (issues.length === 0) {\n  return [{\n    json: {\n      support_id: request.support_id,\n      customer_id: request.customer_id,\n      submitted_at: request.submitted_at,\n      customer_question: request.customer_question,\n      category: 'UNCATEGORISED',\n      priority: 'MEDIUM',\n      ai_draft_response: 'AI analysis unavailable - needs manual triage.',\n      escalation_required: true,\n      escalation_reason: 'AI analysis failed',\n      status: 'ESCALATED',\n      human_response: ''\n    }\n  }];\n}\n\n// Keep the sheet clean: fixed category list, and status is just OPEN or ESCALATED\nconst allowedCategories = ['ONBOARDING', 'DOCUMENTATION', 'TECHNICAL', 'COMPLIANCE', 'PAYMENT', 'GENERAL'];\nconst allowedPriorities = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];\n\n// One sheet row per issue\nreturn issues.map((ai, index) => {\n  const category = String(ai.category || '').trim().toUpperCase();\n  const priority = String(ai.priority || '').trim().toUpperCase();\n  const escalated = ai.escalation_required === true ||\n    String(ai.escalation_required).trim().toLowerCase() === 'true';\n\n  return {\n    json: {\n      support_id: issues.length > 1 ? `${request.support_id}-${index + 1}` : request.support_id,\n      customer_id: request.customer_id,\n      submitted_at: request.submitted_at,\n      customer_question: String(ai.customer_question || '').trim() || request.customer_question,\n      category: allowedCategories.includes(category) ? category : 'GENERAL',\n      priority: allowedPriorities.includes(priority) ? priority : 'MEDIUM',\n      ai_draft_response: ai.ai_draft_response,\n      escalation_required: escalated,\n      escalation_reason: ai.escalation_reason || '',\n      status: escalated ? 'ESCALATED' : 'OPEN',\n      human_response: ''\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        192,
+        1552
+      ],
+      "id": "477c4da7-c938-4a4d-91af-0d9958bc162b",
+      "name": "Parse AI Analysis"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Support_Requests",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "support_id": "={{ $json.support_id }}",
+            "customer_id": "={{ $json.customer_id }}",
+            "submitted_at": "={{ $json.submitted_at }}",
+            "customer_question": "={{ $json.customer_question }}",
+            "category": "={{ $json.category }}",
+            "priority": "={{ $json.priority }}",
+            "ai_draft_response": "={{ $json.ai_draft_response }}",
+            "escalation_required": "={{ $json.escalation_required }}",
+            "status": "={{ $json.status }}",
+            "human_response": "={{ $json.human_response }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "support_id",
+              "displayName": "support_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_id",
+              "displayName": "customer_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "submitted_at",
+              "displayName": "submitted_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "customer_question",
+              "displayName": "customer_question",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "category",
+              "displayName": "category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "priority",
+              "displayName": "priority",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ai_draft_response",
+              "displayName": "ai_draft_response",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "escalation_required",
+              "displayName": "escalation_required",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "human_response",
+              "displayName": "human_response",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        400,
+        1552
+      ],
+      "id": "ae81b71d-9718-4c90-a269-fcd1c70c4f8d",
+      "name": "Save Support Request",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -768,
+        2240
+      ],
+      "id": "1c68950b-927e-48e8-833b-27665511c0dc",
+      "name": "Generate Management Report"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Customers",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -560,
+        2240
+      ],
+      "id": "09de90ed-c394-4f26-911a-09f9548c7942",
+      "name": "Get Customers",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Onboarding Tasks",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -352,
+        2240
+      ],
+      "id": "37b9df25-65aa-4908-b480-9af18476e262",
+      "name": "Get Tasks",
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Support_Requests",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -144,
+        2240
+      ],
+      "id": "d1bc3afd-ce08-4322-8c29-e5fabca1db25",
+      "name": "Get Support Requests",
+      "alwaysOutputData": true,
+      "executeOnce": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Follow_Up_Log",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        64,
+        2240
+      ],
+      "id": "68d63f14-33b7-4e93-ac67-a2cf51a18138",
+      "name": "Get Follow-Up Log",
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "jsCode": "const stamp = () => new Intl.DateTimeFormat('sv-SE', {\n  timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit',\n  hour: '2-digit', minute: '2-digit', hour12: false\n}).format(new Date());   // e.g. 2026-11-23 09:10 (Lagos time)\n\nconst customers = $('Get Customers').all()\n  .map(item => item.json)\n  .filter(row => row.customer_id);\n\nconst tasks = $('Get Tasks').all()\n  .map(item => item.json)\n  .filter(row => row.task_id);\n\nconst supportRequests = $('Get Support Requests').all()\n  .map(item => item.json)\n  .filter(row => row.support_id);\n\nconst followUps = $('Get Follow-Up Log').all()\n  .map(item => item.json)\n  .filter(row => row.followup_id);\n\nconst upper = v => String(v || '').trim().toUpperCase();\n\nconst totalCustomers = customers.length;\n\n// A customer is COMPLETED when they have tasks and every task is COMPLETED\nconst tasksByCustomer = new Map();\nfor (const task of tasks) {\n  const id = String(task.customer_id);\n  if (!tasksByCustomer.has(id)) tasksByCustomer.set(id, []);\n  tasksByCustomer.get(id).push(task);\n}\n\nconst completedCustomers = customers.filter(c => {\n  const list = tasksByCustomer.get(String(c.customer_id)) || [];\n  return list.length > 0 && list.every(t => upper(t.status) === 'COMPLETED');\n}).length;\n\nconst pendingCustomers = totalCustomers - completedCustomers;\n\nconst outstandingTasks = tasks.filter(row =>\n  ['PENDING', 'IN_PROGRESS'].includes(upper(row.status))\n).length;\n\nconst openSupport = supportRequests.filter(row =>\n  !['RESOLVED', 'CLOSED'].includes(upper(row.status))\n);\n\nconst unresolvedSupportRequests = openSupport.length;\n\nconst escalatedOpen = openSupport.filter(row =>\n  String(row.escalation_required).toLowerCase() === 'true'\n).length;\n\nconst sentFollowUps = followUps.filter(row => upper(row.status) === 'SENT').length;\nconst failedFollowUps = followUps.filter(row => upper(row.status) === 'FAILED').length;\n\nconst reportSummary = `\nMANAGEMENT REPORT\n\nTotal customers: ${totalCustomers}\nCustomers still onboarding: ${pendingCustomers}\nCustomers fully onboarded: ${completedCustomers}\nOutstanding onboarding tasks: ${outstandingTasks}\nUnresolved support requests: ${unresolvedSupportRequests}\n  of which escalated to a human: ${escalatedOpen}\nFollow-up emails sent: ${sentFollowUps}\nFollow-up emails failed: ${failedFollowUps}\n\nThis report was generated automatically by the onboarding prototype.\nSupport requests remain subject to human review.\n`.trim();\n\nreturn [{\n  json: {\n    report_id: `RPT-${Date.now()}`,\n    generated_at: stamp(),\n    total_customers: totalCustomers,\n    pending_customers: pendingCustomers,\n    completed_customers: completedCustomers,\n    outstanding_tasks: outstandingTasks,\n    unresolved_support_requests: unresolvedSupportRequests,\n    report_summary: reportSummary\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        2240
+      ],
+      "id": "f4599891-5665-4414-b557-7a7cdae98d2c",
+      "name": "Generate Management Summary"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Management_Reports",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "report_id": "={{ $json.report_id }}",
+            "generated_at": "={{ $json.generated_at }}",
+            "total_customers": "={{ $json.total_customers }}",
+            "pending_customers": "={{ $json.pending_customers }}",
+            "completed_customers": "={{ $json.completed_customers }}",
+            "outstanding_tasks": "={{ $json.outstanding_tasks }}",
+            "unresolved_support_requests": "={{ $json.unresolved_support_requests }}",
+            "report_summary": "={{ $json.report_summary }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "report_id",
+              "displayName": "report_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "generated_at",
+              "displayName": "generated_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "total_customers",
+              "displayName": "total_customers",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "pending_customers",
+              "displayName": "pending_customers",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "completed_customers",
+              "displayName": "completed_customers",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "outstanding_tasks",
+              "displayName": "outstanding_tasks",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "unresolved_support_requests",
+              "displayName": "unresolved_support_requests",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "report_summary",
+              "displayName": "report_summary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        480,
+        2240
+      ],
+      "id": "bf7d0cae-68c7-4cf6-bd27-209d0624b9f9",
+      "name": "Append row in sheet",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                1
+              ],
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -768,
+        2400
+      ],
+      "id": "fa9083e9-6180-4559-9944-4f7736d53dd2",
+      "name": "Weekly Report Schedule"
+    },
+    {
+      "parameters": {
+        "sendTo": "REPLACE_WITH_MANAGER_EMAIL",
+        "subject": "=Weekly Onboarding Management Report - {{ $now.toFormat('dd LLL yyyy') }}",
+        "emailType": "text",
+        "message": "={{ $('Generate Management Summary').first().json.report_summary }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        704,
+        2240
+      ],
+      "id": "21da6961-ffcb-40f8-aed0-8759f821e2fd",
+      "name": "Email Management Report",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Customer Support Form": {
+      "main": [
+        [
+          {
+            "node": "Validate Support Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Support Request": {
+      "main": [
+        [
+          {
+            "node": "Check Support Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Support Request": {
+      "main": [
+        [
+          {
+            "node": "AI Support Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Support Analysis",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Support Analysis",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Support Analysis": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Analysis": {
+      "main": [
+        [
+          {
+            "node": "Save Support Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Management Report": {
+      "main": [
+        [
+          {
+            "node": "Get Customers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Customers": {
+      "main": [
+        [
+          {
+            "node": "Get Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Tasks": {
+      "main": [
+        [
+          {
+            "node": "Get Support Requests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Support Requests": {
+      "main": [
+        [
+          {
+            "node": "Get Follow-Up Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Follow-Up Log": {
+      "main": [
+        [
+          {
+            "node": "Generate Management Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Management Summary": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Weekly Report Schedule": {
+      "main": [
+        [
+          {
+            "node": "Get Customers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Email Management Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "tags": []
+}
