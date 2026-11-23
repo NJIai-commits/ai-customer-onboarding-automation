@@ -4,9 +4,9 @@ A three-workflow n8n prototype that onboards a new business customer, keeps them
 
 > **Independent prototype.** I built this as a portfolio piece for a Product Manager application at Farmily (customer onboarding, product adoption, customer feedback, AI automation). It is not affiliated with Farmily and was built without access to any of its systems. All customers and data in this repository are fictional. The agricultural export setting is my assumption from the job description.
 
-**Built by:** Ilesanmi Imisioluwa Hannah
-**Demo video:** [Loom walkthrough](ADD_LOOM_LINK_HERE)
-**Stack:** n8n, Google Gemini, Google Sheets, Gmail
+- **Built by:** Ilesanmi Imisioluwa Hannah
+- **Demo video:** _Loom walkthrough link to be added_
+- **Stack:** n8n, Google Gemini, Google Sheets, Gmail
 
 ---
 
