@@ -2,7 +2,7 @@
 
 A three-workflow n8n prototype that onboards a new business customer, keeps them moving with reminders, triages their support questions, and gives management a weekly report. AI drafts and categorises. People stay in charge of anything regulatory, legal or financial.
 
-> **Independent prototype.** I built this as a portfolio piece for a Product Manager application at Farmily (customer onboarding, product adoption, customer feedback, AI automation). It is not affiliated with Farmily and was built without access to any of its systems. All customers and data in this repository are fictional. The agricultural export setting is my assumption from the job description.
+> **Portfolio prototype**. The sample setting is onboarding exporters, farmers and certifiers onto an agricultural trade platform. All customers and data are fictional, and this project is not affiliated with any company.
 
 - **Built by:** Ilesanmi Imisioluwa Hannah
 - **Demo video:** _Loom walkthrough link to be added_
