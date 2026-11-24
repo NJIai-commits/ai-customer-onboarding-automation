@@ -5,7 +5,7 @@ A three-workflow n8n prototype that onboards a new business customer, keeps them
 > **Portfolio prototype**. The sample setting is onboarding exporters, farmers and certifiers onto an agricultural trade platform. All customers and data are fictional, and this project is not affiliated with any company.
 
 - **Built by:** Ilesanmi Imisioluwa Hannah
-- **Demo video:** _Loom walkthrough link to be added_
+- **Demo video:** (https://www.loom.com/share/9c093b65de8a492a8e6001ec97763e27)
 - **Stack:** n8n, Google Gemini, Google Sheets, Gmail
 
 ---
